@@ -1,0 +1,6 @@
+#!/bin/sh
+
+CWD=$(dirname $0)
+ROOT=$(cd $CWD/..; pwd)
+
+$ROOT/node_modules/.bin/ts-node $ROOT/src/client.ts
