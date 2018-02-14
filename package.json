@@ -9,15 +9,20 @@
     "webpack-dev-container": "bin/webpack-dev-container"
   },
   "scripts": {
-    "build": "ts-pub build"
+    "build": "ts-pub build",
+    "client": "ts-node src/client",
+    "server": "ts-node src/server"
   },
   "keywords": [],
   "author": "",
   "dependencies": {
+    "betturl": "0.2.3",
     "body-parser": "1.18.2",
     "chokidar": "1.7.0",
     "cors": "2.8.4",
+    "debug": "3.1.0",
     "express": "4.16.2",
+    "fs-extra": "5.0.0",
     "lodash.debounce": "4.0.8",
     "morgan": "1.9.0",
     "notepack.io": "2.1.2",
@@ -34,12 +39,13 @@
     "@types/chokidar": "1.7.4",
     "@types/cors": "2.8.3",
     "@types/express": "4.11.0",
+    "@types/fs-extra": "5.0.0",
     "@types/lodash.debounce": "4.0.3",
     "@types/morgan": "1.7.35",
-    "@types/node": "8.5.2",
+    "@types/node": "9.4.6",
     "@types/uws": "0.13.1",
-    "ts-node": "4.0.2",
+    "ts-node": "4.1.0",
     "ts-pub": "0.0.5",
-    "typescript": "2.6.2"
+    "typescript": "2.7.1"
   }
 }

@@ -1,41 +1,38 @@
-import * as fs from 'fs';
-import * as tar from 'tar';
-import * as cors from 'cors';
-import * as path from 'path';
-import * as crypto from 'crypto';
-import * as morgan from 'morgan';
-import * as express from 'express';
-import * as bodyParser from 'body-parser';
-import { Server as WebSocketServer } from 'uws';
-import { Duplex, Writable } from 'stream';
+import * as fs from "fs";
+import * as tar from "tar";
+import * as cors from "cors";
+import * as path from "path";
+import * as crypto from "crypto";
+import * as morgan from "morgan";
+import * as express from "express";
+import * as bodyParser from "body-parser";
+import { Server as WebSocketServer } from "uws";
+import { Duplex, Writable } from "stream";
 
-import { accept } from './socket-stream';
+import { Session } from "./session";
+import { accept } from "../common/socket";
 
 const app = express();
 
-app.use(morgan('dev'));
+app.use(morgan("dev"));
 app.use(cors());
 app.use(bodyParser.json());
 
-const port = JSON.parse(process.env['PORT'] || '3000');
+const port = JSON.parse(process.env["PORT"] || "3000");
 const http = app.listen(port, () => console.log(`Listening on port ${port}`));
 
 const wss = new WebSocketServer({ server: http });
 
-const ROOT = path.join(process.cwd(), crypto.randomBytes(16).toString('hex'));
-fs.mkdirSync(ROOT);
-
 // process.on('beforeExit', () => fs.unlinkSync(ROOT));
 
-wss.on('connection', socket => {
-  console.log('new connection');
-  const socketStream = accept(socket);
-
-  socketStream.on('data', console.log);
+wss.on("connection", connection => {
+  const socket = accept(connection);
+  const session = Session.create(socket);
+  // do anything with this?
 
   // const plex = multiplex((stream: Duplex, id: string) => {
   //   console.log('NEW MULTIPLEXED STREAM', id);
-    
+
   //   if (id === 'protocol') {
   //     stream.on('data', (message: Buffer) => {
   //       const data = notepack.decode(message);
@@ -65,7 +62,7 @@ wss.on('connection', socket => {
 
   // socketStream.pipe(plex).pipe(socketStream);
 
-  socketStream.on('close', () => console.log('socket closed'));
+  // socketStream.on("close", () => console.log("socket close"));
 
   /*
   - listen for messages

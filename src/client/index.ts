@@ -1,9 +1,11 @@
-import { Duplex } from 'stream';
-import * as crypto from 'crypto';
+import { EOL } from "os";
+import * as betturl from "betturl";
+// import { Duplex } from "stream";
+// import * as crypto from "crypto";
 
-import { connect } from './socket-stream';
-import { Watcher, WatcherChanges } from './watcher';
-
+// import { connect } from "../common/socket-stream";
+// import { Watcher, WatcherChanges } from "./watcher";
+import { connect } from "../common/socket";
 
 // function sendFiles(socket: Socket, files: string[]) {
 //   return tar.create({ gzip: true, portable: true, cwd: process.cwd() }, files);
@@ -15,14 +17,34 @@ interface Update {
   removed: string[];
 }
 
-async function main() {
-  const watcher = new Watcher(process.cwd());
-  const socket = await connect('ws://localhost:3000');
+function makeWsUrl(endpoint?: string): string {
+  if (!endpoint) {
+    return "ws://localhost:3000";
+  }
 
-  socket.on('error', err => console.log(err.stack));
-  socket.on('connect', () => console.log('connect'));
-  socket.on('reconnect', () => console.log('reconnect'));
-  socket.on('disconnect', () => console.log('disconnect'));
+  const { host, port } = betturl.parse(endpoint);
+  return "ws://" + [host, port].filter(a => a).join(":");
+}
+
+async function main(endpoint?: string) {
+  const url = makeWsUrl(endpoint);
+  const root = process.cwd();
+
+  console.log([`- Watching ${root}`, `- Streaming to ${url}`].join(EOL));
+
+  // const watcher = new Watcher(root);
+  const socket = await connect(url);
+
+  socket.on("connected", () => {
+    socket.send({ hello: new Date() });
+  });
+
+  // socket.on("error", err => console.log("ERROR", err.stack));
+  // socket.on("connecting", () => console.log("connecting"));
+  // socket.on("connected", () => console.log("connected"));
+  // socket.on("disconnected", () => console.log("disconnected"));
+  // socket.on("reconnect", () => console.log("reconnect"));
+  // socket.on("disconnect", () => console.log("disconnect"));
 
   // let updateQueue: Update[] = [];
   // let currentUpdate: Update | undefined;
@@ -72,10 +94,6 @@ async function main() {
   // }
 
   // socket.on('connect', () => sendUpdate(watcher.allChanges));
-  socket.on('connect', () => {
-    console.log('connected');
-    socket.write({ hello: new Date() });
-  });
   // socket.on('disconnect', () => updateQueue = []);
 }
 
@@ -85,4 +103,4 @@ async function main() {
 //   tar.create({ gzip: true, portable: true, cwd: process.cwd() })
 // });
 
-main();
+main(process.argv[2]);
