@@ -11,35 +11,47 @@ export interface WatcherChanges {
 }
 
 export interface WatcherEmitter {
-  on(event: 'change', listener: (changes: WatcherChanges) => void): this;
+  on(event: 'change', listener: () => void): this;
 }
 
 export class Watcher extends EventEmitter implements WatcherEmitter {
-  private root: string;
-  private watcher: chokidar.FSWatcher;
+  static start(root: string): Promise<Watcher> {
+    root = fs.realpathSync(root);
 
-  private mkdir = new Set<string>();
-  private changed = new Set<string>();
-  private removed = new Set<string>();
+    return new Promise(resolve => {
+      const watcher = chokidar.watch(root, {
+        cwd: root,
+        ignored: [
+          'node_modules',
+          'node_modules/**',
+          '**/.*'
+        ],
+        ignoreInitial: true,
+        persistent: true
+      });
 
-  constructor(root: string) {
+      watcher.once('ready', () => {
+        resolve(new Watcher(root, watcher));
+      });
+    });
+  }
+
+  private readonly watcher: chokidar.FSWatcher;
+  readonly root: string;
+
+  private changes = {
+    mkdir: new Set<string>(),
+    changed: new Set<string>(),
+    removed: new Set<string>(),
+  };
+
+  private constructor(root: string, watcher: chokidar.FSWatcher) {
     super();
 
-    this.root = fs.realpathSync(root);
-
-    this.watcher = chokidar.watch(this.root, {
-      cwd: this.root,
-      ignored: [
-        'node_modules',
-        'node_modules/**',
-        '**/.*'
-      ],
-      // ignoreInitial: true,
-      persistent: true
-    });
+    this.root = root;
+    this.watcher = watcher;
 
     this.watcher.on('error', this.onError);
-    this.watcher.on('ready', this.onReady);
 
     this.watcher.on('add', this.onAdd);
     this.watcher.on('change', this.onChange);
@@ -50,44 +62,35 @@ export class Watcher extends EventEmitter implements WatcherEmitter {
   }
 
   private notify = debounce(() => {
-    this.emit('change', {
-      mkdir: Array.from(this.mkdir),
-      changed: Array.from(this.changed),
-      removed: Array.from(this.removed)
-    });
-  }, 1000);
+    this.emit('change', 1000);
+  });
 
   private onError = (err: Error) => {
     console.log(err.stack);
   }
 
-  private onReady = () => {
-    // [directory: string]: string[];
-    // console.log(this.watcher.getWatched());
-  }
-
   private onAdd = (file: string) => {
-    this.changed.add(file);
+    this.changes.changed.add(file);
     this.notify();
   }
 
   private onChange = (file: string) => {
-    this.changed.add(file);
+    this.changes.changed.add(file);
     this.notify();
   }
 
   private onUnlink = (file: string) => {
-    this.removed.add(file);
+    this.changes.removed.add(file);
     this.notify();
   }
 
   private onAddDir = (file: string) => {
-    this.mkdir.add(file);
+    this.changes.mkdir.add(file);
     this.notify();
   }
 
   private onUnlinkDir = (file: string) => {
-    this.removed.add(file);
+    this.changes.removed.add(file);
     this.notify();
   }
 
@@ -99,13 +102,32 @@ export class Watcher extends EventEmitter implements WatcherEmitter {
     };
 
     const watched = this.watcher.getWatched();
-    for (const dir of Object.keys(watched)) {
-      changes.mkdir.push(dir);
+
+    for (const dir of Object.keys(watched).filter(d => d !== '..')) {
+      if (dir !== '.') {
+        changes.mkdir.push(dir);
+      }
       for (const file of watched[dir]) {
         changes.changed.push(path.join(dir, file));
       }
     }
 
+    return changes;
+  }
+
+  takeChanges(): WatcherChanges {
+    const changes: WatcherChanges = {
+      changed: Array.from(this.changes.changed),
+      mkdir: Array.from(this.changes.mkdir),
+      removed: Array.from(this.changes.removed),
+    };
+
+    this.changes = {
+      mkdir: new Set<string>(),
+      changed: new Set<string>(),
+      removed: new Set<string>(),
+    };
+    
     return changes;
   }
 }

@@ -36,6 +36,7 @@ class PayloadContainer {
 
     while ((result = PayloadEncoder.decode(this.buffer)) !== null) {
       const { payload, remainingBuffer } = result;
+      payloads.push(payload);
       this.buffer = remainingBuffer;
     }
 
@@ -81,8 +82,7 @@ class ClientSocket extends EventEmitter implements Socket {
   }
 
   private onMessage = (data: Buffer, flags: { binary: boolean }) => {
-    const payloads = this.payload.append(data);
-    for (const payload of payloads) {
+    for (const payload of this.payload.append(data)) {
       debug("message", payload);
       this.emit("message", payload);
     }
@@ -145,7 +145,9 @@ class ClientSocket extends EventEmitter implements Socket {
 }
 
 class ServerSocket extends EventEmitter implements Socket {
+  private backlog: any[] = [];
   private payload = new PayloadContainer();
+
   private readonly socket: WebSocket;
 
   constructor(socket: WebSocket) {
@@ -168,17 +170,35 @@ class ServerSocket extends EventEmitter implements Socket {
 
   private onMessage = (data: Buffer, flags: { binary: boolean }) => {
     data = Buffer.from(data);
-    console.log("onMessage", data, flags);
 
-    const payloads = this.payload.append(data);
-    for (const payload of payloads) {
-      debug("message", payload);
-      this.emit("message", payload);
+    for (const payload of this.payload.append(data)) {
+      if (this.listenerCount("message") === 0) {
+        this.backlog.push(payload);
+      } else {
+        debug("message", payload);
+        this.emit("message", payload);
+      }
     }
   };
 
   disconnect() {
     this.socket.close();
+  }
+
+  on(event: string | symbol, listener: (...args: any[]) => void): this {
+    if (event === "message") {
+      const payloads = [...this.backlog];
+      this.backlog = [];
+
+      setImmediate(() => {
+        for (const payload of payloads) {
+          debug("message", payload);
+          this.emit("message", payload);
+        }
+      });
+    }
+
+    return super.on(event, listener);
   }
 
   send(payload: any): Promise<void> {
