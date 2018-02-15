@@ -1,3 +1,8 @@
+process.on('unhandledRejection', (...args) => {
+  console.log('== UNHANDLED REJECTION ==');
+  console.log(args);
+});
+
 import { EOL } from "os";
 import * as betturl from "betturl";
 

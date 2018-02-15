@@ -95,24 +95,27 @@ export class Watcher extends EventEmitter implements WatcherEmitter {
   }
 
   get allChanges(): WatcherChanges {
-    const changes: WatcherChanges = {
-      changed: [],
-      mkdir: [],
-      removed: []
-    };
-
     const watched = this.watcher.getWatched();
+    const mkdir = Object.keys(watched).filter(d => d[0] !== '.')
+    const changed = new Set<string>();
 
-    for (const dir of Object.keys(watched).filter(d => d !== '..')) {
-      if (dir !== '.') {
-        changes.mkdir.push(dir);
-      }
-      for (const file of watched[dir]) {
-        changes.changed.push(path.join(dir, file));
+    for (const dir of Object.keys(watched)) {
+      if (dir !== '..') {
+        for (const file of watched[dir]) {
+          changed.add(path.join(dir, file));
+        }
       }
     }
 
-    return changes;
+    for (const dir of mkdir) {
+      changed.delete(dir);
+    }
+
+    return {
+      changed: Array.from(changed),
+      mkdir,
+      removed: [],
+    };
   }
 
   takeChanges(): WatcherChanges {

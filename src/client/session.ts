@@ -34,8 +34,14 @@ export class Session {
   private async sendChange(changes: WatcherChanges) {
     const changed: {[file: string]: Buffer} = {};
 
+    console.log(changes);
     await Promise.all(changes.changed.map(async (file) => {
-      changed[file] = await fs.readFile(path.join(this.watcher.root, file));
+      try {
+        changed[file] = await fs.readFile(path.join(this.watcher.root, file));
+      } catch (err) {
+        console.log(file, path.join(this.watcher.root, file));
+        console.log(err.stack);
+      }
     }));
 
     this.socket.send({
