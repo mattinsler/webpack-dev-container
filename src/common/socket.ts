@@ -81,7 +81,9 @@ class ClientSocket extends EventEmitter implements Socket {
     }
   }
 
-  private onMessage = (data: Buffer, flags: { binary: boolean }) => {
+  private onMessage = (data: Buffer) => {
+    data = Buffer.from(data);
+
     for (const payload of this.payload.append(data)) {
       debug("message", payload);
       this.emit("message", payload);

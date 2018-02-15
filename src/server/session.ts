@@ -2,14 +2,18 @@ import * as path from "path";
 import * as fs from "fs-extra";
 import * as crypto from "crypto";
 
-import { DevServer } from './dev-server';
+import { DevServer } from "./dev-server";
 import { Socket } from "../common/socket";
-import { ChangeSetManager } from './change-set-manager';
-import { ChangeMessage, isChangeMessage, Message } from '../common/messages';
+import { ChangeSetManager } from "./change-set-manager";
+import { ChangeMessage, isChangeMessage, Message } from "../common/messages";
 
 export class Session {
   static async create(socket: Socket): Promise<Session> {
-    const root = path.join(process.cwd(), "sessions", crypto.randomBytes(16).toString("hex"));
+    const root = path.join(
+      process.cwd(),
+      "sessions",
+      crypto.randomBytes(16).toString("hex")
+    );
 
     console.log("New session", root);
 
@@ -32,12 +36,39 @@ export class Session {
     this.socket.on("message", this.onMessage);
     this.socket.on("disconnected", this.onDisconnected);
     this.changeSetManager.on("apply", this.onChangeSetApply);
+    this.devServer.on("log", this.onDevServerLog);
+    this.devServer.on("task", this.onDevServerTask);
 
     process.on("beforeExit", this.closeSync);
   }
 
-  private onChangeSetApply = async ({ install, refresh, restart }: { install: boolean; refresh: boolean; restart: boolean; }) => {
-    console.log('== CHANGE SET APPLIED', { install, restart });
+  private onDevServerLog = (stream: "stderr" | "stdout", text: string) => {
+    this.socket.send({
+      type: "log",
+      stream,
+      text
+    });
+  };
+
+  private onDevServerTask = (operation: "begin" | "end", name: string) => {
+    this.socket.send({
+      type: "task",
+      operation,
+      name,
+      taskId: 5
+    });
+  };
+
+  private onChangeSetApply = async ({
+    install,
+    refresh,
+    restart
+  }: {
+    install: boolean;
+    refresh: boolean;
+    restart: boolean;
+  }) => {
+    console.log("== CHANGE SET APPLIED", { install, restart });
 
     if (install) {
       await this.devServer.install();
@@ -66,6 +97,8 @@ export class Session {
     console.log("Session::close");
     process.removeListener("beforeExit", this.closeSync);
 
+    await this.devServer.stop();
+
     if (await fs.pathExists(this.root)) {
       await fs.remove(this.root);
     }
@@ -75,6 +108,8 @@ export class Session {
   closeSync = () => {
     console.log("Session::closeSync");
     process.removeListener("beforeExit", this.closeSync);
+
+    this.devServer.stop();
 
     if (fs.existsSync(this.root)) {
       fs.removeSync(this.root);
