@@ -1,30 +1,28 @@
 const notepack = require("notepack.io");
-import { Header, HeaderData } from "./header";
 
 export interface DecodedPayload {
-  header: HeaderData;
   payload: any;
   remainingBuffer: Buffer;
 }
 
 export const PayloadEncoder = {
   encode(value: any): Buffer {
-    const encoded = notepack.encode(value);
-    const header = Header.encode({ version: 1, size: encoded.length });
-    return Buffer.concat([header, encoded]);
+    return notepack.encode(value);
   },
 
   decode(value: Buffer): DecodedPayload | null {
-    const header = value.length > Header.length && Header.decode(value);
+    try {
+      const payload = notepack.decode(value);
+      return { payload, remainingBuffer: new Buffer(0) };
+    } catch (err) {
+      const match = err.message.trim().match(/^([0-9]+) trailing bytes$/);
+      if (match) {
+        const size = parseInt(match[1], 10);
+        const payload = notepack.decode(value.slice(0, size));
+        return { payload, remainingBuffer: value.slice(size) };
+      }
 
-    if (header && value.length >= Header.length + header.size) {
-      const payload = notepack.decode(
-        value.slice(Header.length, Header.length + header.size)
-      );
-      const remainingBuffer = value.slice(Header.length + header.size);
-      return { header, payload, remainingBuffer };
+      return null;
     }
-
-    return null;
   }
 };
