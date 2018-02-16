@@ -47,10 +47,17 @@ export class DevServer extends EventEmitter {
     }
 
     return new Promise(resolve => {
-      this.server = spawn("/bin/sh", ["-c", "webpack-dev-server --port 9000"], {
-        cwd: this.root,
-        stdio: "pipe"
-      });
+      this.server = spawn(
+        "/bin/sh",
+        [
+          "-c",
+          "node_modules/.bin/webpack-dev-server --disable-host-check --host 0.0.0.0 --port 8080"
+        ],
+        {
+          cwd: this.root,
+          stdio: "pipe"
+        }
+      );
       this.server.stdout.on("data", text => {
         process.stdout.write(text);
         this.emit("log", "stdout", text);

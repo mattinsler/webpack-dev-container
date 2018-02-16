@@ -1,3 +1,4 @@
+import * as net from "net";
 import * as WebSocket from "uws";
 import { EventEmitter } from "events";
 
@@ -146,7 +147,7 @@ class ClientSocket extends EventEmitter implements Socket {
   }
 }
 
-class ServerSocket extends EventEmitter implements Socket {
+class ServerWebSocket extends EventEmitter implements Socket {
   private backlog: any[] = [];
   private payload = new PayloadContainer();
 
@@ -223,10 +224,94 @@ class ServerSocket extends EventEmitter implements Socket {
   }
 }
 
+class ServerTcpSocket extends EventEmitter implements Socket {
+  private backlog: any[] = [];
+  private payload = new PayloadContainer();
+
+  private readonly socket: net.Socket;
+
+  constructor(socket: net.Socket) {
+    super();
+
+    this.socket = socket;
+
+    socket.on("close", () => {
+      this.connected = false;
+      debug("disconnected");
+      this.emit("disconnected");
+    });
+
+    socket.on("data", this.onData);
+  }
+
+  connected = true;
+  connecting = false;
+
+  private onData = (data: Buffer) => {
+    data = Buffer.from(data);
+
+    for (const payload of this.payload.append(data)) {
+      if (this.listenerCount("message") === 0) {
+        this.backlog.push(payload);
+      } else {
+        debug("message", payload);
+        this.emit("message", payload);
+      }
+    }
+  };
+
+  disconnect() {
+    this.socket.end();
+  }
+
+  on(event: string | symbol, listener: (...args: any[]) => void): this {
+    if (event === "message") {
+      const payloads = [...this.backlog];
+      this.backlog = [];
+
+      setImmediate(() => {
+        for (const payload of payloads) {
+          debug("message", payload);
+          this.emit("message", payload);
+        }
+      });
+    }
+
+    return super.on(event, listener);
+  }
+
+  send(payload: any): Promise<void> {
+    if (!this.connected) {
+      throw new Error("Cannot send messages while disconnected");
+    }
+
+    return new Promise((resolve, reject) => {
+      this.socket.write(PayloadEncoder.encode(payload), err => {
+        if (err) {
+          return reject(err);
+        }
+        resolve();
+      });
+    });
+  }
+}
+
 export function connect(url: string): Socket {
   return new ClientSocket(url);
 }
 
-export function accept(connection: WebSocket): Socket {
-  return new ServerSocket(connection);
+function isWebSocket(value: any): value is WebSocket {
+  return !!(value as any).readyState;
+}
+
+function isTcpSocket(value: any): value is net.Socket {
+  return typeof (value as any).connect === "function";
+}
+
+export function accept(connection: WebSocket | net.Socket) {
+  if (isWebSocket(connection)) {
+    return new ServerWebSocket(connection);
+  } else if (isTcpSocket(connection)) {
+    return new ServerTcpSocket(connection);
+  }
 }
